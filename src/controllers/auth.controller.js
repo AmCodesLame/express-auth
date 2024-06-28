@@ -110,7 +110,7 @@ export const login = async (req, res) => {
     }
 }
 
-export const updateProfile = async (req, res) => {
+export const updateUser = async (req, res) => {
   try {
         const { username, email, password, location, work, dob, briefDescription } = req.body;
         const userId = req.user.id;
@@ -143,11 +143,85 @@ export const updateProfile = async (req, res) => {
     }
 }
 
-export const getProfile = async (req, res) => {
+export const getUser = async (req, res) => {
     try {
         const user = req.user;
         res.status(200).json({ user });
       } catch (error) {
         res.status(500).json({ message: 'Server error' });
       }
+}
+
+export const adminLogin = async (req, res) => {
+  try {
+      const { email, password } = req.body;
+      if (!email || !password) {
+        return res.status(400).json({ message: 'Please fill all fields' });
+      }
+      const user = await User.findOne({ email });
+      if (!user) {
+          return res.status(400).json({ message: 'Invalid credentials' });
+      }
+      const isValid = await bcrypt.compare(password, user.password);
+      const hashedPassword = await bcrypt.hash(password, 10);
+      if (!isValid) {
+          return res.status(400).json({ message: 'Invalid credentials'+hashedPassword });
+      }
+      if(!user.is_admin) {
+          return res.status(400).json({ message: 'Not Authorized'});
+      }
+      const token = jwt.sign({ id: user._id, role: user.is_admin }, process.env.JWT_SECRET, { expiresIn: '6h' }); 
+
+      res.status(200).json({ message: 'Admin User logged in', token });
+  } catch (error) {
+      console.log(error)
+      res.status(500).json({ message: 'Server error' });
+  }
+}
+
+export const adminGetUsers = async (req, res) => {
+  try {
+      let users = [];
+      const usersdb = await User.find({ is_admin: false });
+      usersdb.forEach(user => {
+        users.push(user.username);
+      })
+      res.status(200).json({ users });
+    } catch (error) {
+      res.status(500).json({ message: 'Server error' });
+    }
+}
+
+export const adminGetUser = async (req, res) => {
+  try {
+      const { username } = req.body;
+      if(!username ) {
+        return res.status(400).json({ message: 'Please fill all fields' });
+      }
+
+      const user = await User.findOne({ username }).select('-password');
+      if (!user) {
+          return res.status(400).json({ message: 'Invalid username' });
+      }
+      res.status(200).json({ user });
+    } catch (error) {
+      res.status(500).json({ message: 'Server error' });
+    }
+}
+
+export const adminDeleteUser = async (req, res) => {
+  try {
+      const { username } = req.body;
+      if(!username ) {
+        return res.status(400).json({ message: 'Please fill all fields' });
+      }
+
+      const user = await User.findOneAndDelete({ username });
+      if (!user) {
+          return res.status(400).json({ message: 'Invalid username' });
+      }
+      res.status(200).json({ message: 'User deleted' });
+    } catch (error) {
+      res.status(500).json({ message: 'Server error' });
+    }
 }

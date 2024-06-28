@@ -12,7 +12,6 @@ app.use(bodyParser.json());
 
 app.use('/profile', authRouter);
 
-
 app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
 });
