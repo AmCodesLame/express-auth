@@ -10,7 +10,7 @@ connectDB();
 
 app.use(bodyParser.json());
 
-app.use('/api/auth', authRouter);
+app.use('/profile', authRouter);
 
 
 app.listen(PORT, () => {

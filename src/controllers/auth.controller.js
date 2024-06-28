@@ -4,7 +4,7 @@ import jwt from 'jsonwebtoken';
 import dotenv from 'dotenv';
 
 import User from '../models/user.model.js';
-import {sendVerificationOtp} from '../utils/auth.utils.js';
+import {sendVerificationOtp, calculateAge} from '../utils/auth.utils.js';
 dotenv.config();
 
 
@@ -39,6 +39,9 @@ export const resendOtp = async (req, res) => {
         if (!user) {
             return res.status(400).json({ message: 'Invalid email' });
         }
+        if (user.is_verified) {
+            return res.status(400).json({ message: 'Email already verified' });
+        }
         await sendVerificationOtp(email);
         res.status(200).json({ message: 'OTP sent for verification' });
     } catch (error) {
@@ -69,7 +72,7 @@ export const verifyEmail = async (req, res) => {
         await OtpModel.deleteMany({ email });
         res.status(200).json({ message: 'Email verified' });
     } catch (error) {
-        res.status(500).json({ message: 'Server error'+error });
+        res.status(500).json({ message: 'Server error'});
     }
 }
 
@@ -96,10 +99,46 @@ export const login = async (req, res) => {
             await sendVerificationOtp(user.email);
             return res.status(400).json({ message: 'Email not verified, OTP sent for verification' });
         }
+        const token = jwt.sign({ id: user._id, role: user.is_admin }, process.env.JWT_SECRET, { expiresIn: '6h' }); 
+        if(!user.is_updated) {
+            res.status(200).json({ message: 'User logged in, Update profile', token });
+        }
 
-        const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '6h' }); 
         res.status(200).json({ message: 'User logged in', token });
     } catch (error) {
         res.status(500).json({ message: 'Server error' });
+    }
+}
+
+export const updateProfile = async (req, res) => {
+  try {
+        const { username, email, password, location, work, dob, briefDescription } = req.body;
+        const userId = req.user.id;
+
+        if (username || email || password) {
+          return res.status(400).json({ message: 'Cannot update these fields: username, email, password' });
+        }
+
+        const user = await User.findById(userId);
+        if (!user) {
+          return res.status(404).json({ message: 'User not found' });
+        }
+        
+        if(dob){
+          user.dob = new Date(dob);
+          user.age = calculateAge(dob);
+          user.is_updated = true;
+        }
+
+        user.location = location || user.location;
+        user.work = work || user.work;
+        user.briefDescription = briefDescription || user.briefDescription;
+        user.updatedAt = Date.now();
+
+        await user.save();
+
+        res.status(200).json({ message: 'Profile updated succesfully', user });
+    } catch (error) {
+        res.status(500).json({ message: 'Server error'+error });
     }
 }
