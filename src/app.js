@@ -1,16 +1,16 @@
 import express from 'express';
 import bodyParser from 'body-parser';
 import connectDB from './utils/db.utils.js';
+import authRouter from './routes/auth.route.js';
 
 const PORT = process.env.PORT || 3000;
 const app = express()
 
 connectDB();
 
+app.use(bodyParser.json());
 
-app.get("/", (req, res) => {
-    res.json({ message: "ok" });
-});
+app.use('/api/auth', authRouter);
 
 
 app.listen(PORT, () => {
