@@ -11,28 +11,36 @@ dotenv.config();
 export const register = async (req, res) => {
   try {
     const { username, email, password } = req.body;
+    if (!username || !email || !password) {
+      return res.status(400).json({ message: 'Please fill all fields' });
+    }
     const existingUser = await User.findOne({ email });
-    if (existingUser) {
+    const existingUsername = await User.findOne({ username });
+    if (existingUser || existingUsername) {
       return res.status(400).json({ message: 'User already exists' });
     }
     const hashedPassword = await bcrypt.hash(password, 10);
     const user = new User({ username, email, password: hashedPassword });
     await user.save();    
-    sendVerificationOtp();
+    await sendVerificationOtp(email);
     res.status(201).json({ message: 'User registered, Verify User through OTP' });
   } catch (error) {
-    res.status(500).json({ message: 'Server error' });
+    res.status(500).json({ message: `Server error - ${error}` });
   }
 };
 
 export const resendOtp = async (req, res) => {
     try {
         const { email } = req.body;
+        if (!email) {
+          return res.status(400).json({ message: 'Please fill all fields' });
+        }
         const user = await User.findOne({ email });
         if (!user) {
             return res.status(400).json({ message: 'Invalid email' });
         }
-        sendVerificationOtp();
+        await sendVerificationOtp(email);
+        res.status(200).json({ message: 'OTP sent for verification' });
     } catch (error) {
         res.status(500).json({ message: 'Server error' });
     }
@@ -41,26 +49,42 @@ export const resendOtp = async (req, res) => {
 export const verifyEmail = async (req, res) => {
     try {
         const { email, otp } = req.body;
+        if (!username || !otp) {
+          return res.status(400).json({ message: 'Please fill all fields' });
+        }
+
         const user = await User.findOne({ email });
         if (!user) {
             return res.status(400).json({ message: 'Invalid email' });
         } 
+        if (user.is_verified) {
+            return res.status(400).json({ message: 'Email already verified' });
+        }
         const response = await OtpModel.find({ email }).sort({ createdAt: -1 }).limit(1);
-        if (!actualOtp || response[0].otp !== otp) {
+        
+        if (response.length == 0 || response[0].otp !== otp) {
             return res.status(400).json({ message: 'Invalid OTP' });
         }
         await User.findOneAndUpdate({ email }, { is_verified: true });
-        await OtpModel.deleteAll({ email });
+        await OtpModel.deleteMany({ email });
         res.status(200).json({ message: 'Email verified' });
     } catch (error) {
-        res.status(500).json({ message: 'Server error' });
+        res.status(500).json({ message: 'Server error'+error });
     }
 }
 
 export const login = async (req, res) => {
     try {
-        const { email, password } = req.body;
-        const user = await User.findOne({ email });
+        const { username, email, password } = req.body;
+        if ((!username && !email) || !password) {
+          return res.status(400).json({ message: 'Please fill all fields' });
+        }
+        let user;
+        if(email) {
+          user = await User.findOne({ email });
+        } else {
+          user = await User.findOne({username})
+        }
         if (!user) {
             return res.status(400).json({ message: 'Invalid credentials' });
         }
@@ -69,7 +93,8 @@ export const login = async (req, res) => {
             return res.status(400).json({ message: 'Invalid credentials' });
         }
         if(!user.is_verified) {
-            return res.status(400).json({ message: 'Email not verified' });
+            await sendVerificationOtp(user.email);
+            return res.status(400).json({ message: 'Email not verified, OTP sent for verification' });
         }
 
         const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '6h' }); 

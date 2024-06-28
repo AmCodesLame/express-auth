@@ -1,7 +1,7 @@
 import nodemailer from 'nodemailer';
 import mailConfig from '../config/nodemailer.config.js';
 import OtpModel from '../models/otp.model.js';
-const crypto = require('crypto');
+import crypto from 'crypto';
 
 export const sendVerificationOtp = async (email) => {
   try {
@@ -15,6 +15,7 @@ export const sendVerificationOtp = async (email) => {
     });
     const otp = crypto.randomInt(100000, 999999);
     const otpData = new OtpModel({ email, otp });
+    await otpData.save();
     const info = await transporter.sendMail({
       from: 'intern@monter.com',
       to: email,
@@ -24,6 +25,6 @@ export const sendVerificationOtp = async (email) => {
     console.log("Email info: ", info);
     return info;
   } catch (error) {
-    console.log(error.message);
+    throw new Error("Failed to send OTP");
   }
 };
